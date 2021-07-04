@@ -1,11 +1,11 @@
-package com.example;
+package com.entitycapture;
 
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 
 @ConfigGroup("example")
-public interface ExampleConfig extends Config
+public interface EntityCaptureConfig extends Config
 {
 	@ConfigItem(
 		keyName = "greeting",
