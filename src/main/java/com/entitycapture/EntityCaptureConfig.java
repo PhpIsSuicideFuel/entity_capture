@@ -4,16 +4,36 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 
-@ConfigGroup("example")
+@ConfigGroup("entitycapture")
 public interface EntityCaptureConfig extends Config
 {
 	@ConfigItem(
-		keyName = "greeting",
-		name = "Welcome Greeting",
-		description = "The message to show to the user when they login"
+		keyName = "objectId",
+		name = "Object Id",
+		description = "Specify the object id."
 	)
-	default String greeting()
+	default int objectId()
 	{
-		return "Hello";
+		return 0;
+	}
+
+	@ConfigItem(
+		keyName = "pauseDuration",
+		name = "Pause Duration",
+		description = "Seconds to wait between screenshots."
+	)
+	default int pauseDuration()
+	{
+		return 3;
+	}
+
+	@ConfigItem(
+		keyName = "isActive",
+		name = "Is Active",
+		description = "Is the plugin active."
+	)
+	default boolean isActive()
+	{
+		return false;
 	}
 }
