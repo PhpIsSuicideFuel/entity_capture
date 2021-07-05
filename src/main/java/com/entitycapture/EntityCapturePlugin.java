@@ -25,6 +25,7 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.DrawManager;
@@ -51,6 +52,12 @@ public class EntityCapturePlugin extends Plugin
 	@Inject
 	private DrawManager drawManager;
 
+	@Inject
+	private KeyManager keyManager;
+
+	@Inject
+	private EntityCaptureKeyboardListener entityCaptureKeyboardListener;
+
 	private final Map<GameObject, CaptureObject> captureObjects = new HashMap<>();
 
 
@@ -59,14 +66,15 @@ public class EntityCapturePlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
-//		takeScreenshot(String.valueOf(config.objectId()));
 		time = System.nanoTime();
+		keyManager.registerKeyListener(entityCaptureKeyboardListener);
 		log.info("Example started!");
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
+		keyManager.unregisterKeyListener(entityCaptureKeyboardListener);
 		log.info("Example stopped!");
 	}
 
@@ -106,22 +114,31 @@ public class EntityCapturePlugin extends Plugin
 	{
 		int timeElapsed = Math.toIntExact((System.nanoTime() - time) / 1000000000);
 
-		if (timeElapsed > config.pauseDuration()) {
-			for (CaptureObject captureObject : captureObjects.values()) {
-				GameObject gameObject = captureObject.getGameObject();
-				Tile tile = captureObject.getTile();;
-				log.info("Plane: " + (gameObject.getPlane() == client.getPlane()));
-				log.info("Distance: " + tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()));
+		if (!config.isActive()) {
+			return;
+		}
 
-				if (gameObject.getPlane() == client.getPlane()
-					&& tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()) < MAX_DISTANCE) {
-						takeScreenshot(gameObject);
-				}
-			}
+		if (timeElapsed > config.pauseDuration()) {
+			takeAllObjectsScreenshot();
 			time = System.nanoTime();
 		}
 
 		log.info(String.valueOf(captureObjects.size()));
+	}
+
+	public void takeAllObjectsScreenshot()
+	{
+		for (CaptureObject captureObject : captureObjects.values()) {
+			GameObject gameObject = captureObject.getGameObject();
+			Tile tile = captureObject.getTile();;
+			log.info("Plane: " + (gameObject.getPlane() == client.getPlane()));
+			log.info("Distance: " + tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()));
+
+			if (gameObject.getPlane() == client.getPlane()
+				&& tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()) < MAX_DISTANCE) {
+				takeScreenshot(gameObject);
+			}
+		}
 	}
 
 	private void takeScreenshot(GameObject object)
