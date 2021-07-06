@@ -1,27 +1,25 @@
 package com.entitycapture;
 
 import com.google.inject.Provides;
-import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Consumer;
+import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
-import net.runelite.api.GameState;
-import net.runelite.api.ObjectID;
 import net.runelite.api.Tile;
 import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameObjectSpawned;
-import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -30,7 +28,8 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.DrawManager;
 import net.runelite.client.util.ImageCapture;
-import net.runelite.client.util.ImageUploadStyle;
+import static net.runelite.client.RuneLite.SCREENSHOT_DIR;
+
 
 @Slf4j
 @PluginDescriptor(
@@ -38,6 +37,7 @@ import net.runelite.client.util.ImageUploadStyle;
 )
 public class EntityCapturePlugin extends Plugin
 {
+	private static final DateFormat TIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
 	private static final int MAX_DISTANCE = 2000;
 
 	@Inject
@@ -45,9 +45,6 @@ public class EntityCapturePlugin extends Plugin
 
 	@Inject
 	private EntityCaptureConfig config;
-
-	@Inject
-	private ImageCapture imageCapture;
 
 	@Inject
 	private DrawManager drawManager;
@@ -59,7 +56,6 @@ public class EntityCapturePlugin extends Plugin
 	private EntityCaptureKeyboardListener entityCaptureKeyboardListener;
 
 	private final Map<GameObject, CaptureObject> captureObjects = new HashMap<>();
-
 
 	long time;
 
@@ -109,51 +105,120 @@ public class EntityCapturePlugin extends Plugin
 		}
 	}
 
-	@Subscribe
-	public void onGameTick(GameTick gameTick)
-	{
-		int timeElapsed = Math.toIntExact((System.nanoTime() - time) / 1000000000);
-
-		if (!config.isActive()) {
-			return;
-		}
-
-		if (timeElapsed > config.pauseDuration()) {
-			takeAllObjectsScreenshot();
-			time = System.nanoTime();
-		}
-
-		log.info(String.valueOf(captureObjects.size()));
-	}
+	//Maybe make use of this later, but right now I feel like manual image taking gets you better results
+//	@Subscribe
+//	public void onGameTick(GameTick gameTick)
+//	{
+//		int timeElapsed = Math.toIntExact((System.nanoTime() - time) / 1000000000);
+//
+//		if (!config.isActive()) {
+//			return;
+//		}
+//
+//		if (timeElapsed > config.pauseDuration()) {
+//			takeAllObjectsScreenshot();
+//			time = System.nanoTime();
+//		}
+//
+//		log.info(String.valueOf(captureObjects.size()));
+//	}
 
 	public void takeAllObjectsScreenshot()
 	{
-		for (CaptureObject captureObject : captureObjects.values()) {
-			GameObject gameObject = captureObject.getGameObject();
-			Tile tile = captureObject.getTile();;
-			log.info("Plane: " + (gameObject.getPlane() == client.getPlane()));
-			log.info("Distance: " + tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()));
+		int objectCount = 0;
+		String imageFileName = config.objectId() + "-" + new Timestamp(System.nanoTime()).getTime();
 
-			if (gameObject.getPlane() == client.getPlane()
-				&& tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()) < MAX_DISTANCE) {
-				takeScreenshot(gameObject);
+		String resultLine = "";
+
+		log.info(captureObjects.size() + "");
+
+		if (config.isPositive()) {
+			for (CaptureObject captureObject : captureObjects.values()) {
+				GameObject gameObject = captureObject.getGameObject();
+				Tile tile = captureObject.getTile();
+				;
+				log.info("Plane: " + (gameObject.getPlane() == client.getPlane()));
+				log.info("Distance: " + tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()));
+
+				if (gameObject.getPlane() == client.getPlane()
+					&& tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()) < MAX_DISTANCE) {
+					if (gameObject.getClickbox() == null) { // if the object is off screen we will skip it
+						continue;
+					}
+					objectCount++;
+					Rectangle objectRect = gameObject.getClickbox().getBounds();
+					log.info(objectRect.toString());
+					resultLine += " " + objectRect.x + " " + objectRect.y + " " + objectRect.width + " " + objectRect.height;
+				}
+			}
+
+			if (objectCount < 1) { // Do not output anything if there are no entities to capture
+				return;
+			}
+		} else {
+			for (CaptureObject captureObject : captureObjects.values()) {
+				GameObject gameObject = captureObject.getGameObject();
+				// Opposite of capturing positive samples we don't take the picture if object is on screen
+				if (gameObject.getClickbox() != null) {
+					log.warn("Cannot take negative picture if the object is on screen.");
+					return;
+				}
 			}
 		}
+
+		// Set the subdir accordingly for the type of images user is capturing
+		String subdir = config.isPositive() ? "positive" : "negative";
+
+		imageFileName = objectCount + "-" + imageFileName;
+		// Constructing the final result line [Image file] [object count] [object x, y, w, h]
+		String pathToImage = subdir + File.separator + imageFileName;
+		resultLine = pathToImage + (config.isPositive() ? " " + objectCount : "") + resultLine + "\n";
+
+		String playerDir = client.getLocalPlayer().getName() + File.separator + config.objectId() + File.separator;
+		File playerScreenshotFolder = new File(SCREENSHOT_DIR, playerDir);
+
+
+		takeScreenshot(imageFileName, new File(playerScreenshotFolder, subdir));
+
+		writeResults(playerScreenshotFolder, subdir, resultLine);
+
 	}
 
-	private void takeScreenshot(GameObject object)
+	private void takeScreenshot(String fileName, File directory)
 	{
-			drawManager.requestNextFrameListener(image ->
-			{
-					BufferedImage bufferedImage = (BufferedImage) image;
-					Rectangle rect = object.getClickbox().getBounds();
+		directory.mkdirs();
 
-					// cropping image to the object hitbox
-					BufferedImage cropped = bufferedImage.getSubimage(rect.x, rect.y, rect.width, rect.height);
+		drawManager.requestNextFrameListener(image ->
+		{
+			BufferedImage screenshot = (BufferedImage) image;
 
-					imageCapture.takeScreenshot(cropped, String.valueOf(object.getId()), String.valueOf(object.getId()), false, ImageUploadStyle.NEITHER);
-					log.info("image taken: " + object.getId());
-			});
+			try {
+				File screenshotFile = new File(directory, fileName + ".png");
+				ImageIO.write(screenshot, "PNG", screenshotFile);
+			} catch (IOException ex) {
+				log.warn("error writing screenshot", ex);
+			}
+
+			log.info("image taken: " + fileName);
+		});
 	}
 
+	private void writeResults(File directory, String subdir, String resultLine)
+	{
+		byte[] resultBytes = resultLine.getBytes();
+
+		try {
+			File resultsFile = new File(directory, subdir + ".txt");
+			resultsFile.createNewFile(); // If file already exists will do nothing
+
+			// Write results to output file
+			FileOutputStream oFile = new FileOutputStream(resultsFile, true);
+			oFile.write(resultBytes);
+			oFile.close();
+
+		} catch (IOException e) {
+			System.out.println("An error occurred.");
+			e.printStackTrace();
+		}
+	}
 }

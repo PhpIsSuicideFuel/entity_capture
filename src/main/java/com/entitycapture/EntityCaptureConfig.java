@@ -31,23 +31,34 @@ public interface EntityCaptureConfig extends Config
 		return 0;
 	}
 
-	@ConfigItem(
-		keyName = "pauseDuration",
-		name = "Pause Duration",
-		description = "Seconds to wait between screenshots."
-	)
-	default int pauseDuration()
-	{
-		return 3;
-	}
+//	@ConfigItem(
+//		keyName = "pauseDuration",
+//		name = "Pause Duration",
+//		description = "Seconds to wait between screenshots."
+//	)
+//	default int pauseDuration()
+//	{
+//		return 3;
+//	}
+
+//	@ConfigItem(
+//		keyName = "isActive",
+//		name = "Is Active",
+//		description = "Is the plugin active."
+//	)
+//	default boolean isActive()
+//	{
+//		return false;
+//	}
 
 	@ConfigItem(
-		keyName = "isActive",
-		name = "Is Active",
-		description = "Is the plugin active."
+		keyName = "isPositive",
+		name = "Is Positive",
+		description = "On for positive samples, Off for negative samples."
 	)
-	default boolean isActive()
+	default boolean isPositive()
 	{
-		return false;
+		return true;
 	}
+
 }
