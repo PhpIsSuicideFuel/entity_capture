@@ -20,14 +20,12 @@ import net.runelite.api.GameObject;
 import net.runelite.api.Tile;
 import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameObjectSpawned;
-import net.runelite.api.events.GameTick;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.DrawManager;
-import net.runelite.client.util.ImageCapture;
 import static net.runelite.client.RuneLite.SCREENSHOT_DIR;
 
 
