@@ -64,14 +64,12 @@ public class EntityCapturePlugin extends Plugin
 	{
 		time = System.nanoTime();
 		keyManager.registerKeyListener(entityCaptureKeyboardListener);
-		log.info("Example started!");
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
 		keyManager.unregisterKeyListener(entityCaptureKeyboardListener);
-		log.info("Example stopped!");
 	}
 
 	@Provides
@@ -95,8 +93,6 @@ public class EntityCapturePlugin extends Plugin
 	@Subscribe
 	public void onGameObjectDespawned(GameObjectDespawned e)
 	{
-		log.info("Despawned object " + e.getGameObject().getId());
-
 		GameObject object = e.getGameObject();
 
 		if (object.getId() == config.objectId()) {
@@ -130,29 +126,24 @@ public class EntityCapturePlugin extends Plugin
 
 		String resultLine = "";
 
-		log.info(captureObjects.size() + "");
-
 		if (config.isPositive()) {
 			for (CaptureObject captureObject : captureObjects.values()) {
 				GameObject gameObject = captureObject.getGameObject();
 				Tile tile = captureObject.getTile();
-				;
-				log.info("Plane: " + (gameObject.getPlane() == client.getPlane()));
-				log.info("Distance: " + tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()));
 
 				if (gameObject.getPlane() == client.getPlane()
 					&& tile.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation()) < MAX_DISTANCE) {
-					if (gameObject.getClickbox() == null) { // if the object is off screen we will skip it
+					if (!isObjectOnScreen(gameObject)) { // if the object is off screen we will skip it
 						continue;
 					}
 					objectCount++;
 					Rectangle objectRect = gameObject.getClickbox().getBounds();
-					log.info(objectRect.toString());
 					resultLine += " " + objectRect.x + " " + objectRect.y + " " + objectRect.width + " " + objectRect.height;
 				}
 			}
 
 			if (objectCount < 1) { // Do not output anything if there are no entities to capture
+				log.warn("No objects (" + config.objectId() + ") in client viewport, no image is taken.");
 				return;
 			}
 		} else {
@@ -160,7 +151,7 @@ public class EntityCapturePlugin extends Plugin
 				GameObject gameObject = captureObject.getGameObject();
 				// Opposite of capturing positive samples we don't take the picture if object is on screen
 				if (gameObject.getClickbox() != null) {
-					log.warn("Cannot take negative picture if the object is on screen.");
+					log.warn("Cannot take negative picture if a specified object (" + config.objectId() + ") is on screen.");
 					return;
 				}
 			}
@@ -169,7 +160,7 @@ public class EntityCapturePlugin extends Plugin
 		// Set the subdir accordingly for the type of images user is capturing
 		String subdir = config.isPositive() ? "positive" : "negative";
 
-		imageFileName = objectCount + "-" + imageFileName;
+		imageFileName = objectCount + "-" + imageFileName + ".png";
 		// Constructing the final result line [Image file] [object count] [object x, y, w, h]
 		String pathToImage = subdir + File.separator + imageFileName;
 		resultLine = pathToImage + (config.isPositive() ? " " + objectCount : "") + resultLine + "\n";
@@ -193,7 +184,7 @@ public class EntityCapturePlugin extends Plugin
 			BufferedImage screenshot = (BufferedImage) image;
 
 			try {
-				File screenshotFile = new File(directory, fileName + ".png");
+				File screenshotFile = new File(directory, fileName);
 				ImageIO.write(screenshot, "PNG", screenshotFile);
 			} catch (IOException ex) {
 				log.warn("error writing screenshot", ex);
@@ -220,5 +211,28 @@ public class EntityCapturePlugin extends Plugin
 			System.out.println("An error occurred.");
 			e.printStackTrace();
 		}
+	}
+
+	private boolean isObjectOnScreen(GameObject object) {
+		Shape clickbox = object.getClickbox();
+
+		if (clickbox == null) {
+			return false;
+		}
+		Rectangle rectangle = clickbox.getBounds();
+
+		int clientWidth = client.getViewportWidth();
+		int clientHeight = client.getViewportHeight();
+
+		// Check if the object bounds reach off screen
+		if (rectangle.x + rectangle.width > clientWidth) {
+			return false;
+		}
+
+		if (rectangle.y + rectangle.height > clientHeight) {
+			return false;
+		}
+
+		return true;
 	}
 }
